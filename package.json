@@ -1,0 +1,16 @@
+{
+  "name": "poker-settle-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobile-friendly poker buy-in tracker and settlement tool for Netlify.",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site - no build needed'"
+  },
+  "dependencies": {
+    "@netlify/blobs": "latest"
+  },
+  "devDependencies": {
+    "netlify-cli": "latest"
+  }
+}

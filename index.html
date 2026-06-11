@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>Poker Settle Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Poker Night</p>
+        <h1>Buy-ins & Settling</h1>
+        <p class="subhead">Track ₹1,000 buy-ins, enter final stacks, and instantly see who pays who.</p>
+      </div>
+      <button id="settingsBtn" class="icon-btn" aria-label="Open settings">⚙️</button>
+    </header>
+
+    <main>
+      <section id="screenStart" class="screen active">
+        <div class="panel highlight-panel">
+          <h2>Start a new session</h2>
+          <label class="field-label" for="sessionName">Session name</label>
+          <input id="sessionName" class="input" type="text" placeholder="Friday poker, Goa trip, etc." />
+
+          <label class="field-label" for="defaultBuyIn">Buy-in increment</label>
+          <div class="currency-input">
+            <span>₹</span>
+            <input id="defaultBuyIn" class="input no-border" type="number" value="1000" min="1" step="100" />
+          </div>
+
+          <button id="startBtn" class="primary-btn full">Start Game</button>
+        </div>
+
+        <div class="panel">
+          <div class="section-title-row">
+            <h2>All-time dashboard</h2>
+            <button id="refreshStatsBtn" class="ghost-btn">Refresh</button>
+          </div>
+          <div id="statsGrid" class="stats-grid muted-box">Loading saved sessions…</div>
+          <div id="leaderboard" class="leaderboard"></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title-row">
+            <h2>Past sessions</h2>
+            <button id="clearLocalBtn" class="ghost-btn danger-text">Clear current draft</button>
+          </div>
+          <div id="pastSessions" class="session-list muted-box">No sessions loaded yet.</div>
+        </div>
+      </section>
+
+      <section id="screenBuyIns" class="screen">
+        <div class="topbar">
+          <button class="back-btn" data-goto="screenStart">← Home</button>
+          <div>
+            <p class="eyebrow">Step 1</p>
+            <h2>Track buy-ins</h2>
+          </div>
+        </div>
+
+        <div class="panel sticky-summary">
+          <div>
+            <p class="label">Total buy-ins</p>
+            <strong id="buyInTotal">₹0</strong>
+          </div>
+          <div>
+            <p class="label">Players</p>
+            <strong id="playerCount">0</strong>
+          </div>
+          <div>
+            <p class="label">Increment</p>
+            <strong id="buyInIncrementLabel">₹1,000</strong>
+          </div>
+        </div>
+
+        <div class="panel add-player-panel">
+          <label class="field-label" for="newPlayerName">Add player</label>
+          <div class="inline-form">
+            <input id="newPlayerName" class="input" type="text" placeholder="Name" />
+            <button id="addPlayerBtn" class="secondary-btn">Add</button>
+          </div>
+        </div>
+
+        <div id="buyInCards" class="cards-list"></div>
+
+        <div class="panel confirm-panel">
+          <label class="checkbox-row">
+            <input id="confirmBuyIns" type="checkbox" />
+            <span>I confirm all buy-ins are correct.</span>
+          </label>
+          <button id="endGameBtn" class="primary-btn full" disabled>End Game & Enter Final Stacks</button>
+        </div>
+      </section>
+
+      <section id="screenFinals" class="screen">
+        <div class="topbar">
+          <button class="back-btn" data-goto="screenBuyIns">← Buy-ins</button>
+          <div>
+            <p class="eyebrow">Step 2</p>
+            <h2>Final amounts</h2>
+          </div>
+        </div>
+
+        <div class="panel sticky-summary totals-grid">
+          <div>
+            <p class="label">Total buy-ins</p>
+            <strong id="finalBuyInTotal">₹0</strong>
+          </div>
+          <div>
+            <p class="label">Final stacks entered</p>
+            <strong id="finalStacksTotal">₹0</strong>
+          </div>
+          <div>
+            <p class="label">Difference</p>
+            <strong id="differenceTotal">₹0</strong>
+          </div>
+        </div>
+
+        <div id="tallyMessage" class="notice"></div>
+        <div id="finalCards" class="cards-list"></div>
+
+        <div class="panel">
+          <h2>Live settlement</h2>
+          <div id="liveSettlement" class="settlement-list muted-box">Enter final stacks to see payments.</div>
+        </div>
+
+        <button id="finishBtn" class="primary-btn full floating-action" disabled>Finish Session</button>
+      </section>
+
+      <section id="screenSummary" class="screen">
+        <div class="topbar">
+          <button class="back-btn" data-goto="screenStart">← Home</button>
+          <div>
+            <p class="eyebrow">Done</p>
+            <h2>Session summary</h2>
+          </div>
+        </div>
+        <div id="summaryContent"></div>
+        <button id="newSessionBtn" class="primary-btn full">Start Another Session</button>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="settingsDialog" class="dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="section-title-row">
+        <h2>Settings</h2>
+        <button class="icon-btn" value="close">✕</button>
+      </div>
+      <p class="muted">Default players are stored on this phone/browser. Edit the list below; every new game starts everyone with one buy-in.</p>
+      <label class="field-label" for="defaultPlayersText">Default player names, one per line</label>
+      <textarea id="defaultPlayersText" class="textarea" rows="8"></textarea>
+      <label class="field-label" for="appPassword">Optional app password</label>
+      <input id="appPassword" class="input" type="password" placeholder="Only needed if you set APP_PASSWORD in Netlify" />
+      <menu class="dialog-actions">
+        <button class="ghost-btn" value="close">Cancel</button>
+        <button id="saveSettingsBtn" class="primary-btn" value="default">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
