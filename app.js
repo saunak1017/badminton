@@ -4,6 +4,8 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0
 });
 
+const LOCAL_SESSIONS_KEY = 'pokerFinishedSessions';
+
 const STARTER_PLAYERS = [
   'Rishabh',
   'Raj',
@@ -40,6 +42,32 @@ function loadDefaultPlayers() {
 function saveDefaultPlayers(players) {
   state.defaultPlayers = players;
   localStorage.setItem('pokerDefaultPlayers', JSON.stringify(players));
+}
+
+function loadLocalSessions() {
+  try {
+    const sessions = JSON.parse(localStorage.getItem(LOCAL_SESSIONS_KEY) || '[]');
+    return Array.isArray(sessions) ? sessions : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalSessions(sessions) {
+  localStorage.setItem(LOCAL_SESSIONS_KEY, JSON.stringify(sessions));
+}
+
+function mergeSessions(...groups) {
+  const sessionsById = new Map();
+  groups.flat().forEach((session) => {
+    if (session?.id) sessionsById.set(session.id, session);
+  });
+  return [...sessionsById.values()].sort((a, b) => new Date(a.finishedAt || a.createdAt) - new Date(b.finishedAt || b.createdAt));
+}
+
+function cacheFinishedSession(session) {
+  state.sessions = mergeSessions(state.sessions, loadLocalSessions(), [session]);
+  saveLocalSessions(state.sessions);
 }
 
 function saveDraft() {
@@ -174,7 +202,7 @@ function updateFinalAmount(playerId, value) {
   if (!player) return;
   player.finalAmount = value === '' ? '' : Math.max(0, Number(value));
   saveDraft();
-  renderFinals();
+  renderFinals(false);
 }
 
 function renderBuyIns() {
@@ -206,7 +234,7 @@ function renderBuyIns() {
   `).join('');
 }
 
-function renderFinals() {
+function renderFinals(renderCards = true) {
   if (!state.session) return;
   const buyTotal = totalBuyIns();
   const stackTotal = totalFinalStacks();
@@ -230,31 +258,36 @@ function renderFinals() {
     tally.textContent = 'Perfect tally. Final stacks match total buy-ins.';
   }
 
-  $('finalCards').innerHTML = state.session.players.map((player) => {
-    const net = player.finalAmount === '' ? null : playerNet(player);
-    const netClass = net === null || net === 0 ? 'neutral' : net > 0 ? 'positive' : 'negative';
-    const netText = net === null ? 'Waiting' : `${net > 0 ? '+' : ''}${money(net)}`;
-    return `
+  if (renderCards) {
+    $('finalCards').innerHTML = state.session.players.map((player) => `
       <article class="player-card">
         <div class="player-head">
           <div>
             <div class="player-name">${escapeHtml(player.name)}</div>
             <p class="label">Bought in for ${money(player.buyIns * state.session.buyInAmount)}</p>
           </div>
-          <span class="net-pill ${netClass}">${netText}</span>
+          <span class="net-pill neutral" data-final-net="${player.id}">Waiting</span>
         </div>
         <div class="final-row">
           <label>
             <span class="field-label">Final amount</span>
             <div class="currency-input">
               <span>₹</span>
-              <input class="input no-border" type="number" min="0" step="1" inputmode="numeric" value="${player.finalAmount}" data-final-input="${player.id}" placeholder="0" />
+              <input class="input no-border" type="number" min="0" step="1" inputmode="numeric" value="${player.finalAmount}" data-final-input="${player.id}" placeholder="0" autocomplete="off" />
             </div>
           </label>
         </div>
       </article>
-    `;
-  }).join('');
+    `).join('');
+  }
+
+  state.session.players.forEach((player) => {
+    const net = player.finalAmount === '' ? null : playerNet(player);
+    const netPill = document.querySelector(`[data-final-net="${player.id}"]`);
+    if (!netPill) return;
+    netPill.className = `net-pill ${net === null || net === 0 ? 'neutral' : net > 0 ? 'positive' : 'negative'}`;
+    netPill.textContent = net === null ? 'Waiting' : `${net > 0 ? '+' : ''}${money(net)}`;
+  });
 
   const payments = calculateSettlements(state.session.players, state.session.buyInAmount);
   $('liveSettlement').innerHTML = payments.length
@@ -283,13 +316,16 @@ async function finishSession() {
     }))
   };
 
+  cacheFinishedSession(state.session);
+  localStorage.removeItem('pokerDraftSession');
+
   try {
-    await saveSessionToServer(state.session);
-    localStorage.removeItem('pokerDraftSession');
+    const saved = await saveSessionToServer(state.session);
+    cacheFinishedSession(saved.session || state.session);
     showToast('Session saved.');
   } catch (error) {
     console.error(error);
-    showToast(error.message || 'Could not save online. Summary still works here.');
+    showToast('Saved on this device. Online sync will retry automatically.');
   }
 
   await loadSessions();
@@ -325,6 +361,9 @@ function renderSummary() {
 }
 
 async function loadSessions() {
+  const localSessions = loadLocalSessions();
+  state.sessions = mergeSessions(state.sessions, localSessions);
+
   try {
     const response = await fetch('/api/sessions', {
       headers: authHeaders()
@@ -332,11 +371,24 @@ async function loadSessions() {
     if (response.status === 401) throw new Error('Password needed. Tap settings and enter your app password.');
     if (!response.ok) throw new Error('Could not load saved sessions.');
     const data = await response.json();
-    state.sessions = data.sessions || [];
+    const serverSessions = Array.isArray(data.sessions) ? data.sessions : [];
+    const serverIds = new Set(serverSessions.map((session) => session.id));
+    const unsyncedSessions = localSessions.filter((session) => !serverIds.has(session.id));
+
+    for (const session of unsyncedSessions) {
+      try {
+        const result = await saveSessionToServer(session);
+        if (result.session) serverSessions.push(result.session);
+      } catch (error) {
+        console.warn('Could not sync a locally saved session.', error);
+      }
+    }
+
+    state.sessions = mergeSessions(serverSessions, localSessions);
+    saveLocalSessions(state.sessions);
   } catch (error) {
     console.warn(error);
-    state.sessions = [];
-    $('statsGrid').textContent = error.message;
+    state.sessions = mergeSessions(state.sessions, localSessions);
   }
   renderStats();
 }
