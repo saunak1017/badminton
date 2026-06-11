@@ -64,27 +64,32 @@ function sanitizeSession(input) {
 exports.handler = async (event) => {
   if (!isAuthorized(event)) return json(401, { error: 'Unauthorized' });
 
-  const store = getStore('poker-sessions');
-  const key = 'sessions.json';
+  try {
+    const store = getStore('poker-sessions');
 
-  if (event.httpMethod === 'GET') {
-    const sessions = await store.get(key, { type: 'json', consistency: 'strong' }).catch(() => []);
-    return json(200, { sessions: Array.isArray(sessions) ? sessions : [] });
-  }
-
-  if (event.httpMethod === 'POST') {
-    try {
-      const incoming = sanitizeSession(JSON.parse(event.body || '{}'));
-      const existing = await store.get(key, { type: 'json', consistency: 'strong' }).catch(() => []);
-      const sessions = Array.isArray(existing) ? existing.filter((s) => s.id !== incoming.id) : [];
-      sessions.push(incoming);
-      sessions.sort((a, b) => new Date(a.finishedAt) - new Date(b.finishedAt));
-      await store.setJSON(key, sessions);
-      return json(200, { ok: true, session: incoming, count: sessions.length });
-    } catch (error) {
-      return json(400, { error: error.message || 'Invalid session.' });
+    if (event.httpMethod === 'GET') {
+      const [{ blobs }, legacySessions] = await Promise.all([
+        store.list({ prefix: 'sessions/' }),
+        store.get('sessions.json', { type: 'json', consistency: 'strong' }).catch(() => [])
+      ]);
+      const savedSessions = await Promise.all(blobs.map((blob) => store.get(blob.key, { type: 'json', consistency: 'strong' })));
+      const sessions = [...savedSessions, ...(Array.isArray(legacySessions) ? legacySessions : [])]
+        .filter((session) => session?.id)
+        .filter((session, index, all) => all.findIndex((item) => item.id === session.id) === index)
+        .sort((a, b) => new Date(a.finishedAt) - new Date(b.finishedAt));
+      return json(200, { sessions });
     }
-  }
 
-  return json(405, { error: 'Method not allowed' });
+    if (event.httpMethod === 'POST') {
+      const incoming = sanitizeSession(JSON.parse(event.body || '{}'));
+      await store.setJSON(`sessions/${incoming.id}.json`, incoming);
+      return json(200, { ok: true, session: incoming });
+    }
+
+    return json(405, { error: 'Method not allowed' });
+  } catch (error) {
+    console.error('Sessions function failed.', error);
+    const statusCode = event.httpMethod === 'POST' ? 400 : 500;
+    return json(statusCode, { error: error.message || 'Could not access saved sessions.' });
+  }
 };

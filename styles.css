@@ -85,7 +85,8 @@ h3 { font-size: 1rem; margin-bottom: 8px; }
   min-height: 52px;
 }
 .input:focus, .textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.13); }
-.currency-input { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 16px; padding-left: 14px; background: #fff; }
+.currency-input { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 16px; padding-left: 14px; background: #fff; overflow: hidden; }
+.currency-input .input { min-width: 0; width: 100%; font-size: 16px; }
 .currency-input span { font-weight: 900; color: #475467; }
 .no-border { border: 0; box-shadow: none !important; }
 .inline-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
@@ -206,7 +207,10 @@ h3 { font-size: 1rem; margin-bottom: 8px; }
 }
 
 @media (max-width: 390px) {
-  .sticky-summary { grid-template-columns: 1fr; position: static; }
+  .sticky-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; top: 4px; }
+  .sticky-summary > div { min-width: 0; padding: 8px; }
+  .sticky-summary .label { font-size: .62rem; }
+  .sticky-summary strong { font-size: clamp(.78rem, 3.8vw, 1rem); overflow-wrap: anywhere; }
   .inline-form { grid-template-columns: 1fr; }
   .secondary-btn { width: 100%; }
 }
